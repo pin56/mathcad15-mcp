@@ -76,8 +76,8 @@ def com_name(msg: str) -> str:
     for p in msg.split("\t")[1:]:
         p = p.strip()
         for pre in ("doc_mc_", "mc_"):
-            if p.startswith(pre):
-                return p[len(pre):]
+            if p.startswith(pre):  # punctuation is hex-escaped: W_2E_x = W.x, A_27_ = A', a_5F_b = a_b
+                return re.sub(r"_([0-9A-F]{2})_", lambda m: chr(int(m.group(1), 16)), p[len(pre):])
     return ""
 
 
@@ -262,10 +262,16 @@ def region_lines(ctx: _Ctx, reg: ET.Element) -> list[str]:
     return [OTHER.get(k, f"({k})")]
 
 
+def region_text(ws: Worksheet, rid: int, errors: dict[int, str] | None = None) -> list[str]:
+    """Lines of one top-level region by id (no [n] prefix)."""
+    return region_lines(_Ctx(ws, errors or {}), ws.elem(ws.by_id()[rid]))
+
+
 def sheet(name: str, ws: Worksheet, errors: dict[int, str] | None = None, only: set[int] | None = None,
-          errors_only: bool = False, note: str | None = None) -> str:
+          errors_only: bool = False, note: str | None = None, results_only: bool = False) -> str:
     """Listing of a worksheet. `errors`: region-id -> COM message (from worksheet.error_names).
-    `only`: 1-based display numbers to show; `errors_only`: show only regions with ✗."""
+    `only`: 1-based display numbers to show; `errors_only`: show only regions with ✗;
+    `results_only`: only regions with a result (→) or an error."""
     ctx = _Ctx(ws, errors or {})
     body = []
     for n, r in enumerate(ws.regions, 1):
@@ -278,6 +284,8 @@ def sheet(name: str, ws: Worksheet, errors: dict[int, str] | None = None, only: 
             continue
         if errors_only and ctx.errors == before:
             continue
+        if results_only and ctx.errors == before and not any("→" in ln for ln in lines):
+            continue
         pad = " " * (len(str(n)) + 3)
         body.append(f"[{n}] " + lines[0])
         body += [pad + ln for ln in lines[1:]]
@@ -285,6 +293,6 @@ def sheet(name: str, ws: Worksheet, errors: dict[int, str] | None = None, only: 
            f"{plural(ctx.errors, 'ошибка', 'ошибки', 'ошибок')}"
     if note:
         head += f" ({note})"
-    if (only is not None or errors_only) and not body:
+    if (only is not None or errors_only or results_only) and not body:
         body.append("(нет подходящих регионов)")
     return "\n".join([head] + body)

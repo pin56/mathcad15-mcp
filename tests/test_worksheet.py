@@ -163,3 +163,26 @@ def test_error_names_by_position_and_order():
            SimpleNamespace(x_pt=500.0, y_pt=500.0, error="divide by zero"),
            SimpleNamespace(x_pt=0.0, y_pt=0.0, error="")]
     assert error_names(ws, com) == {b.id: "bad_variable\tdoc_mc_c\t", a.id: "divide by zero"}
+
+
+def test_several_plans_replay_bottom_up():
+    ws = built()
+    plans = [ws.replace(3, 3, parse("L := [1; 2; 3]*m")), ws.replace(5, 5, parse("M := q*L^2/8*1"))]
+    saved = Worksheet.parse(ws.to_xml())
+    for p in plans:
+        for rid in p.new_ids:
+            r = saved.by_id()[rid]
+            r.set(height=r.height + 25.0)
+    for p in reversed(plans):
+        saved.apply(p)
+    no_overlap(saved)
+    assert [r.kind for r in saved.regions] == [r.kind for r in built().regions]
+
+
+def test_remove_drops_only_unreferenced_items():
+    ws = Worksheet.parse(built("x := 1\nplot: x=t, y=t, t=0..1\nplot: x=t, y=2*t").to_xml())
+    plots = [r for r in ws.regions if r.kind == "plot"]
+    assert len(ws.items()) == 2
+    ws.remove({plots[0].id})
+    assert len(ws.items()) == 1
+    assert Worksheet.parse(ws.to_xml()).items().keys() == ws.items().keys()

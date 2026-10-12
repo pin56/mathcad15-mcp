@@ -40,6 +40,10 @@ class MathcadTimeout(EngineError):
     pass
 
 
+class MathcadUnavailable(EngineError):
+    """Mathcad is not installed or its COM server does not start."""
+
+
 @dataclass
 class ComRegion:
     type: int        # 0 text, 1 math (plots too), 2 bitmap, 3 metafile, 4 OLE, -1 area
@@ -134,7 +138,7 @@ class Engine:
         try:
             app = win32com.client.DispatchEx("Mathcad.Application")
         except pywintypes.com_error as e:
-            raise EngineError(f"Mathcad 15 не запускается через COM (Mathcad.Application): {_com_text(e)}") from None
+            raise MathcadUnavailable(f"Mathcad 15 не запускается через COM (Mathcad.Application): {_com_text(e)}") from None
         pid = win32process.GetWindowThreadProcessId(app.HWND)[1]
         try:
             app.SetOption(0, False)   # mcShowMessageBoxes

@@ -145,12 +145,13 @@ def order(regions: list[WsRegion]) -> list[WsRegion]:
 
 @dataclass
 class Plan:
-    """Where a replaced block goes; replayable on the Mathcad-saved sheet (ids survive save)."""
+    """Where a replaced block goes; replayable on the Mathcad-saved sheet (ids survive save).
+
+    Several plans replay correctly when made top-down and applied bottom-up (reversed)."""
     new_ids: list[int]
     left: float
     top: float
-    old_end: float                       # block top + old height + gap (== top for an insert)
-    below: dict[int, tuple[float, float]]  # region-id -> (top, align-y) before the edit
+    end: float                           # y below the block (top + heights + gaps) as last laid out
 
 
 def _estimate(r: Region) -> tuple[float, float, float]:
@@ -301,34 +302,53 @@ class Worksheet:
             left = self.regions[-1].left if self.regions else LEFT
             old_end = cut = top
         rest = [r for r in self.regions if r not in old]
-        below = {r.id: (r.top, r.align_y) for r in rest if r.top >= cut}
+        below = {r.id for r in rest if r.top >= cut}
         rid = self._next("region-id")
         new = [self._make(r, rid + i, left) for i, r in enumerate(regions)]
         self.regions = rest + new
-        plan = Plan([r.id for r in new], left, top, old_end, below)
-        self.apply(plan)
-        return plan
+        y = self._stack([r.id for r in new], top, left)
+        self._shift(below, y - old_end)
+        return Plan([r.id for r in new], left, top, y)
 
-    def apply(self, plan: Plan):
-        """Stack the plan's regions with their current (estimated or measured) sizes, shift the rest."""
-        ids = self.by_id()
-        y = plan.top
-        for rid in plan.new_ids:
-            r = ids.get(rid)
+    def _stack(self, ids: list[int], top: float, left: float) -> float:
+        by = self.by_id()
+        y = top
+        for rid in ids:
+            r = by.get(rid)
             if r is None:
                 continue
             asc = r.align_y - r.top
-            r.set(top=y, align_y=y + asc, left=plan.left)
+            r.set(top=y, align_y=y + asc, left=left)
             y += r.height + GAP
-        delta = (y if plan.new_ids else plan.top) - plan.old_end
-        for rid, (t0, a0) in plan.below.items():
-            r = ids.get(rid)
-            if r is not None:
-                r.set(top=t0 + delta, align_y=a0 + delta)
+        return y if ids else top
+
+    def _shift(self, ids: set[int], d: float):
+        if abs(d) > 0.001:
+            for r in self.regions:
+                if r.id in ids:
+                    r.set(top=r.top + d, align_y=r.align_y + d)
         self.regions = order(self.regions)
 
+    def apply(self, plan: Plan):
+        """Restack the plan's regions with their current (Mathcad-measured) sizes; regions that
+        were below the block move by the size difference."""
+        if not plan.new_ids:
+            return
+        new = set(plan.new_ids)
+        below = {r.id for r in self.regions if r.id not in new and r.top >= plan.end - GAP - 0.01}
+        y = self._stack(plan.new_ids, plan.top, plan.left)
+        self._shift(below, y - plan.end)
+        plan.end = y
+
     def remove(self, ids: set[int]):
+        """Drop regions and the binary items (renderings, plots) only they referenced."""
+        gone = [r for r in self.regions if r.id in ids]
         self.regions = [r for r in self.regions if r.id not in ids]
+        refs = {m for r in gone for m in re.findall(r'item-idref="(\d+)"', r.xml)}
+        keep = set(re.findall(r'item-idref="(\d+)"', "".join(r.xml for r in self.regions)))
+        for iid in refs - keep:
+            self.tail = re.sub(rf'\s*<item item-id="{iid}"[^>]*>.*?</item>', "", self.tail, count=1, flags=re.S)
+            self._items = [i for i in self._items if f'item-id="{iid}"' not in i]
 
     def walk(self):
         """(top-level region, nested-or-self <region> element) for every region in display order."""

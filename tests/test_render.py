@@ -102,5 +102,8 @@ def test_error_codes_and_plural():
     assert render.error_text("This value has units: Length, \nbut must have units: Unitless.", None) == \
         "This value has units: Length, but must have units: Unitless"
     assert render.com_name("bad_variable\tmc_Index\t\tmc_Index\tvalue_zone") == "Index"
+    assert render.com_name("bad_variable\tdoc_mc_σ_2E_adm\t") == "σ.adm"
+    assert render.com_name("bad_variable\tdoc_mc_x_2E_y_5F_z\t") == "x.y_z"
+    assert render.com_name("bad_variable\tdoc_mc_A_27_\t") == "A'"
     assert [render.plural(n, "ошибка", "ошибки", "ошибок") for n in (1, 2, 5, 11, 21, 112)] == \
         ["1 ошибка", "2 ошибки", "5 ошибок", "11 ошибок", "21 ошибка", "112 ошибок"]
