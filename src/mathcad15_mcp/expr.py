@@ -274,7 +274,9 @@ class Parser:
             return Node("parens", [e])
         if v == "[":
             return self.matrix(t)
-        raise ParseError(f"неожиданный {v or 'конец строки'!r}", t.pos)
+        if t.type == "end":
+            raise ParseError("ожидалось выражение, а строка кончилась", t.pos)
+        raise ParseError(f"неожиданный {v!r}", t.pos)
 
     def led(self, t: Tok, left: Node) -> Node:
         if t.type == "id":  # implicit multiplication after a number: 6 m
@@ -401,8 +403,6 @@ def make_call(callee: Node, args: list[Node], pos: int = 0) -> Node:
             need(2, 4)
             if len(args) == 3:
                 raise ParseError(f"{name}: пределы задаются парой (нижний, верхний)", pos)
-        if args[1].kind != "id":
-            raise ParseError(f"{name}: второй аргумент — переменная", pos)
         return Node("lam", [args[1], args[0], *args[2:]], {"op": op})
     if name in SOLVERS:
         return Node("op", list(args), {"op": name, "solver": True})
