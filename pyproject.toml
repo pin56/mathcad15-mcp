@@ -22,3 +22,5 @@ mathcad15_mcp = ["data/*"]
 pythonpath = ["src"]
 testpaths = ["tests"]
 markers = ["mathcad: needs a local Mathcad 15 install (COM)"]
+# COM raises first-chance RPC exceptions when a quit server is released; faulthandler logs them as fatal
+addopts = ["-p", "no:faulthandler"]
