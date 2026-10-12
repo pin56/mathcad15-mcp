@@ -12,6 +12,7 @@ from xml.sax.saxutils import escape
 
 from .expr import Id, Node, ParseError, Parser, Real, Tok, strip_lit, tokenize
 from .mathml import ML, Unsupported, region_dsl, to_dsl, to_xml
+from .plot import PlotError, PlotSpec, build_blob
 
 WS = "http://schemas.mathsoft.com/worksheet30"
 U = "http://schemas.mathsoft.com/units10"
@@ -29,14 +30,6 @@ class DslError(Exception):
         if col is not None:
             s += "\n  " + " " * col + "^"
         super().__init__(s)
-
-
-@dataclass
-class PlotSpec:
-    xs: list
-    ys: list
-    xlim: tuple | None = None
-    ylim: tuple | None = None
 
 
 @dataclass
@@ -366,6 +359,10 @@ def _plot(ln: Line) -> list[Region]:
         d = Node("define", [Id(name), rng])
         regions.append(Region("math", to_xml(d), region_dsl(d), ln.no))
     spec = PlotSpec(traces("x"), traces("y"), lim("xlim"), lim("ylim"))
+    try:
+        build_blob(spec.xs, spec.ys, spec.xlim, spec.ylim)
+    except PlotError as e:
+        raise DslError(ln.no, ln.text, str(e)) from None
     regions.append(Region("plot", "", plot_dsl(spec), ln.no, spec))
     return regions
 
