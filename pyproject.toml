@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mathcad15-mcp"
+version = "0.1.0"
+description = "MCP server for PTC Mathcad 15: write, edit, recalculate and read .xmcd worksheets"
+requires-python = ">=3.10"
+dependencies = ["mcp>=2.3", "pywin32>=306"]
+
+[project.scripts]
+mathcad15-mcp = "mathcad15_mcp.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mathcad15_mcp = ["data/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+markers = ["mathcad: needs a local Mathcad 15 install (COM)"]
